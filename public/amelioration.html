@@ -1,74 +1,50 @@
+// === public/amelioration.html ===
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <title>Améliore ton image 🔍</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Améliore ton image</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 40px;
-    }
-    #pixelbin-actions {
-      margin-bottom: 20px;
-    }
+    body { font-family: sans-serif; padding: 40px; text-align: center; }
+    h1 { font-size: 2rem; margin-bottom: 20px; }
+    #pixelbin-actions { margin-bottom: 24px; }
     #uploadBtn {
-      background: #007bff;
-      color: #fff;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-left: 8px;
+      background: #007bff; color: #fff; border: none; padding: 8px 16px;
+      border-radius: 4px; cursor: pointer; margin-left: 8px;
     }
+    #uploadBtn:disabled { opacity: 0.6; cursor: not-allowed; }
     #downloadBtn {
-      background: #28a745;
-      color: #fff;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-left: 8px;
-      display: none;
+      background: #28a745; color: #fff; border: none; padding: 8px 16px;
+      border-radius: 4px; cursor: pointer; margin-left: 8px; display: none;
     }
+    #pixelbin-result {
+      display: flex; justify-content: space-between; flex-wrap: wrap;
+      gap: 20px; margin-top: 20px;
+    }
+    .image-block { flex: 0 1 45%; text-align: center; }
+    .image-block img { max-width: 100%; border-radius: 8px; }
     .spinner {
-      border: 4px solid rgba(0,0,0,0.1);
-      border-left-color: #000;
-      border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      animation: spin 1s linear infinite;
-      display: inline-block;
-      margin-left: 8px;
+      border: 4px solid rgba(0,0,0,0.1); width: 24px; height: 24px;
+      border-radius: 50%; border-left-color: #000;
+      animation: spin 1s linear infinite; display: inline-block;
+      vertical-align: middle; margin-right: 8px;
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    .result {
-      display: flex;
-      justify-content: space-around;
-      margin-top: 20px;
-      flex-wrap: wrap;
-    }
-    .result img {
-      max-width: 100%;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
   <h1>Améliore ton image 🔍</h1>
   <div id="pixelbin-actions">
-    <input type="file" id="pixelbin-upload-input" accept="image/png, image/jpeg">
+    <input type="file" id="pixelbin-upload-input" accept="image/*">
     <button id="uploadBtn">Améliorer l’image</button>
-    <button id="downloadBtn">📥 Télécharger</button>
+    <button id="downloadBtn">💾 Télécharger</button>
   </div>
-  <div class="result" id="pixelbin-result"></div>
+  <div id="pixelbin-result"></div>
 
   <script>
   (function(){
-    const UPLOAD_URL  = "/upload"; // API interne sur Render
+    const UPLOAD_URL  = "/upload";
     const input       = document.getElementById("pixelbin-upload-input");
     const uploadBtn   = document.getElementById("uploadBtn");
     const downloadBtn = document.getElementById("downloadBtn");
@@ -81,7 +57,11 @@
 
       const reader = new FileReader();
       reader.onload = () => {
-        result.innerHTML = `<div><p>🌍 Avant :</p><img src="${reader.result}" /></div>`;
+        result.innerHTML = `
+          <div class="image-block">
+            <p>🌍 Avant</p>
+            <img src="${reader.result}" alt="Avant">
+          </div>`;
       };
       reader.readAsDataURL(file);
 
@@ -95,33 +75,38 @@
       try {
         const form = new FormData();
         form.append("image", file);
-        const resp = await fetch(UPLOAD_URL, { method:"POST", body: form });
+        const resp = await fetch(UPLOAD_URL, { method: "POST", body: form });
         const { transformedUrl } = await resp.json();
 
-        result.innerHTML += `<div><p>✨ Après :</p><img src="${transformedUrl}" /></div>`;
+        result.innerHTML += `
+          <div class="image-block">
+            <p>✨ Après</p>
+            <img src="${transformedUrl}" alt="Après">
+          </div>`;
 
-        const blobResp = await fetch(transformedUrl);
-        const blob = await blobResp.blob();
-        const ext = file.name.split(".").pop();
-        const suffix = Math.random().toString(36).substring(2, 6);
-        const filename = file.name.replace(/\.\w+$/, "") + "_HD_" + suffix + "." + ext;
+        const r2 = await fetch(transformedUrl);
+        const blob = await r2.blob();
         blobUrl = URL.createObjectURL(blob);
-
         downloadBtn.style.display = "inline-block";
-        downloadBtn.onclick = () => {
-          const a = document.createElement("a");
-          a.href = blobUrl;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-        };
       } catch (e) {
         alert("Erreur : " + e.message);
       } finally {
         uploadBtn.disabled = false;
         uploadBtn.textContent = "Améliorer l’image";
       }
+    });
+
+    downloadBtn.addEventListener("click", () => {
+      if (!blobUrl) return;
+      const file = input.files[0];
+      const ext = file.type.split("/")[1] || "png";
+      const name = file.name.replace(/\.\w+$/, "") + "_HD." + ext;
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     });
   })();
   </script>
