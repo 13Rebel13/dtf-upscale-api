@@ -2,7 +2,11 @@ require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
-const { PixelbinConfig, PixelbinClient, url: PixelbinUrl } = require("@pixelbin/admin");
+const {
+  PixelbinConfig,
+  PixelbinClient,
+  url: PixelbinUrl,
+} = require("@pixelbin/admin");
 
 const app = express();
 const upload = multer();
@@ -13,6 +17,7 @@ const {
   PIXELBIN_CLOUD_NAME,
   PIXELBIN_ZONE_SLUG,
   PIXELBIN_UPLOAD_DIR,
+  PIXELBIN_PRESET,
 } = process.env;
 
 const config = new PixelbinConfig({
@@ -24,22 +29,15 @@ const config = new PixelbinConfig({
 const pixelbin = new PixelbinClient(config);
 
 app.post("/upload", upload.single("image"), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "Aucune image envoyée." });
-  }
+  if (!req.file) return res.status(400).json({ error: "Aucune image reçue." });
 
   try {
     const { buffer, originalname } = req.file;
-    const basename = originalname
-      .replace(/\s+/g, "_")
-      .replace(/[\(\)]/g, "")
-      .replace(/\.\w+$/, "");
-
-    const uniqueName = `${basename}-${Date.now()}`;
+    const baseName = originalname.replace(/\.\w+$/, "");
+    const uniqueName = `${baseName}_${Date.now()}`;
     const format = (originalname.match(/\.(\w+)$/) || [])[1] || "png";
 
-    // 1. Upload to Pixelbin
-    const upResult = await pixelbin.uploader.upload({
+    const uploaded = await pixelbin.uploader.upload({
       file: buffer,
       name: uniqueName,
       path: PIXELBIN_UPLOAD_DIR,
@@ -48,22 +46,26 @@ app.post("/upload", upload.single("image"), async (req, res) => {
       overwrite: true,
     });
 
-    const originalUrl = upResult.url;
-
-    // 2. Use URL builder to generate transformed URL
-    const transformedUrl = new PixelbinUrl({
+    // ✅ Utilise ton preset plutôt que le plugin "sr"
+    const transformedUrl = PixelbinUrl.buildUrl({
       cloudName: PIXELBIN_CLOUD_NAME,
       zone: PIXELBIN_ZONE_SLUG,
-    }).buildUrl({
-      version: "v1",
-      path: `${PIXELBIN_UPLOAD_DIR}/${uniqueName}.${format}`,
-      transformations: [{ plugin: "sr", name: "upscale", values: [{ name: "t", value: "4x" }] }],
+      version: uploaded.version,
+      path: uploaded.path,
+      transformations: [
+        {
+          preset: PIXELBIN_PRESET,
+        },
+      ],
     });
 
-    res.json({ originalUrl, transformedUrl });
+    res.json({
+      originalUrl: uploaded.url,
+      transformedUrl,
+    });
   } catch (err) {
-    console.error("❌ Erreur PixelBin :", err);
-    res.status(500).json({ error: "Erreur PixelBin", details: err.message });
+    console.error("❌ Erreur Pixelbin :", err);
+    res.status(500).json({ error: "Erreur Pixelbin", details: err.message });
   }
 });
 
