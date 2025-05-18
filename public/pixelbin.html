@@ -2,110 +2,141 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>Amélioration d’image</title>
+  <title>Amélioration d’image HD</title>
   <style>
     body {
       font-family: sans-serif;
-      padding: 40px;
+      max-width: 1000px;
+      margin: auto;
       text-align: center;
+      padding: 40px;
     }
     #actions {
-      margin-bottom: 30px;
+      margin-bottom: 24px;
     }
-    input, button {
-      margin: 0 8px;
-      padding: 10px;
+    input[type="file"],
+    button {
       font-size: 1rem;
+      margin: 8px;
+    }
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #uploadBtn {
+      background: #007bff;
+      color: white;
     }
     #downloadBtn {
+      background: #28a745;
+      color: white;
       display: none;
     }
-    #result {
+    .gallery {
       display: flex;
       justify-content: center;
-      gap: 40px;
-      margin-top: 40px;
+      gap: 20px;
       flex-wrap: wrap;
+      margin-top: 30px;
     }
-    .image-block {
-      max-width: 40%;
+    .image-box {
+      flex: 0 1 45%;
     }
-    .image-block img {
+    img {
       max-width: 100%;
-      border-radius: 10px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.1);
     }
+    .spinner {
+      border: 4px solid rgba(0,0,0,0.1);
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      border-left-color: #000;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <h1>Amélioration d'image (Pixelbin)</h1>
   <div id="actions">
     <input type="file" id="fileInput" accept="image/*">
     <button id="uploadBtn">Améliorer l’image</button>
     <button id="downloadBtn">📥 Télécharger l’image</button>
   </div>
-  <div id="result"></div>
+  <div class="gallery" id="result"></div>
 
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const fileInput    = document.getElementById("fileInput");
-      const uploadBtn    = document.getElementById("uploadBtn");
-      const downloadBtn  = document.getElementById("downloadBtn");
-      const resultDiv    = document.getElementById("result");
+    window.addEventListener("DOMContentLoaded", () => {
+      const input       = document.getElementById("fileInput");
+      const uploadBtn   = document.getElementById("uploadBtn");
+      const downloadBtn = document.getElementById("downloadBtn");
+      const result      = document.getElementById("result");
+
       let blobUrl;
+      let filename;
 
       uploadBtn.addEventListener("click", async () => {
-        if (!fileInput.files.length) return alert("Sélectionnez une image.");
+        if (!input.files.length) return alert("Sélectionnez une image.");
+        const file = input.files[0];
+        filename = file.name.replace(/\.\w+$/, "");
 
-        const file = fileInput.files[0];
-        const form = new FormData();
-        form.append("image", file);
-
-        // Affichage image originale
+        // Affichage "Avant"
         const reader = new FileReader();
         reader.onload = () => {
-          resultDiv.innerHTML = `
-            <div class="image-block">
+          result.innerHTML = `
+            <div class="image-box">
               <h3>🖼️ Avant</h3>
               <img src="${reader.result}" alt="Avant">
             </div>`;
         };
         reader.readAsDataURL(file);
 
+        // Spinner
         uploadBtn.disabled = true;
-        uploadBtn.textContent = "⏳ En cours...";
+        uploadBtn.innerHTML = '<div class="spinner"></div>';
 
         try {
-          const response = await fetch("/upload", { method: "POST", body: form });
-          const { transformedUrl } = await response.json();
+          const form = new FormData();
+          form.append("image", file);
+          const res = await fetch("/upload", {
+            method: "POST",
+            body: form,
+          });
+          const data = await res.json();
 
-          resultDiv.innerHTML += `
-            <div class="image-block">
+          const r2 = await fetch(data.transformedUrl);
+          const blob = await r2.blob();
+          blobUrl = URL.createObjectURL(blob);
+
+          result.innerHTML += `
+            <div class="image-box">
               <h3>✨ Après</h3>
-              <img id="transformedImage" src="${transformedUrl}" alt="Après">
+              <img src="${data.transformedUrl}" alt="Après">
             </div>`;
 
-          // Téléchargement depuis Pixelbin
-          const r = await fetch(transformedUrl);
-          const blob = await r.blob();
-          blobUrl = URL.createObjectURL(blob);
           downloadBtn.style.display = "inline-block";
-
-          // Télécharger : nom original + suffixe
-          const ext = file.name.split('.').pop();
-          const base = file.name.replace(/\.\w+$/, "");
-          downloadBtn.onclick = () => {
-            const a = document.createElement("a");
-            a.href = blobUrl;
-            a.download = `${base}_upscaled.${ext}`;
-            a.click();
-          };
         } catch (e) {
-          alert("Erreur : " + e.message);
+          alert("Une erreur est survenue.");
+          console.error(e);
         } finally {
           uploadBtn.disabled = false;
           uploadBtn.textContent = "Améliorer l’image";
         }
+      });
+
+      downloadBtn.addEventListener("click", () => {
+        if (!blobUrl) return;
+        const a = document.createElement("a");
+        const suffix = Date.now();
+        a.href = blobUrl;
+        a.download = `${filename}_HD_${suffix}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
       });
     });
   </script>
