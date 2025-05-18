@@ -1,10 +1,10 @@
 require("dotenv").config();
-const express  = require("express");
-const multer   = require("multer");
-const cors     = require("cors");
+const express = require("express");
+const multer = require("multer");
+const cors = require("cors");
 const { PixelbinConfig, PixelbinClient, url: PixelbinUrl } = require("@pixelbin/admin");
 
-const app    = express();
+const app = express();
 const upload = multer();
 app.use(cors());
 
@@ -12,49 +12,58 @@ const {
   PIXELBIN_API_TOKEN,
   PIXELBIN_CLOUD_NAME,
   PIXELBIN_ZONE_SLUG,
-  PIXELBIN_UPLOAD_DIR
+  PIXELBIN_UPLOAD_DIR,
 } = process.env;
 
-const config   = new PixelbinConfig({
-  domain:    "https://api.pixelbin.io",
+const config = new PixelbinConfig({
+  domain: "https://api.pixelbin.io",
   cloudName: PIXELBIN_CLOUD_NAME,
-  zoneSlug:  PIXELBIN_ZONE_SLUG,
+  zoneSlug: PIXELBIN_ZONE_SLUG,
   apiSecret: PIXELBIN_API_TOKEN,
 });
 const pixelbin = new PixelbinClient(config);
 
 app.post("/upload", upload.single("image"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Aucune image envoyée." });
+  if (!req.file) {
+    return res.status(400).json({ error: "Aucune image envoyée." });
+  }
 
   try {
     const { buffer, originalname } = req.file;
-    const basename = originalname.replace(/\s+/g, "_").replace(/[\(\)]/g, "").replace(/\.\w+$/, "");
-    const uniqueName = `${basename}-${Date.now()}`;
+    const basename = originalname
+      .replace(/\s+/g, "_")
+      .replace(/[\(\)]/g, "")
+      .replace(/\.\w+$/, "");
 
+    const uniqueName = `${basename}-${Date.now()}`;
+    const format = (originalname.match(/\.(\w+)$/) || [])[1] || "png";
+
+    // 1. Upload to Pixelbin
     const upResult = await pixelbin.uploader.upload({
       file: buffer,
       name: uniqueName,
       path: PIXELBIN_UPLOAD_DIR,
-      format: (originalname.match(/\.(\w+)$/) || [])[1] || "png",
+      format,
       access: "public-read",
       overwrite: true,
     });
 
     const originalUrl = upResult.url;
 
-    // ✅ Génération propre de l’URL transformée
-    const transformedUrl = PixelbinUrl.URLBuilder.getUrl({
+    // 2. Use URL builder to generate transformed URL
+    const transformedUrl = new PixelbinUrl({
       cloudName: PIXELBIN_CLOUD_NAME,
       zone: PIXELBIN_ZONE_SLUG,
+    }).buildUrl({
       version: "v1",
-      path: upResult.path, // ← chemin relatif
-      transformations: ["sr.upscale(t:4x)"]
+      path: `${PIXELBIN_UPLOAD_DIR}/${uniqueName}.${format}`,
+      transformations: [{ plugin: "sr", name: "upscale", values: [{ name: "t", value: "4x" }] }],
     });
 
     res.json({ originalUrl, transformedUrl });
   } catch (err) {
     console.error("❌ Erreur PixelBin :", err);
-    res.status(500).json({ error: "PixelBin", details: err.message });
+    res.status(500).json({ error: "Erreur PixelBin", details: err.message });
   }
 });
 
@@ -64,5 +73,5 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`🚀 Proxy PixelBin démarré sur le port ${PORT}`);
+  console.log(`🚀 API démarrée sur le port ${PORT}`);
 });
