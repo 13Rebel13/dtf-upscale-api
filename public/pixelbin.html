@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Amélioration Pixelbin</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 40px;
+      text-align: center;
+    }
+    #actions {
+      margin-bottom: 30px;
+    }
+    input, button {
+      margin: 0 8px;
+      padding: 10px;
+      font-size: 1rem;
+    }
+    #downloadBtn {
+      display: none;
+    }
+    #result {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 40px;
+      flex-wrap: wrap;
+    }
+    .image-block {
+      max-width: 40%;
+    }
+    .image-block img {
+      max-width: 100%;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <h1>Amélioration d'image (Pixelbin)</h1>
+  <div id="actions">
+    <input type="file" id="fileInput" accept="image/*">
+    <button id="uploadBtn">Améliorer l’image</button>
+    <button id="downloadBtn">📥 Télécharger l’image</button>
+  </div>
+  <div id="result"></div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const fileInput    = document.getElementById("fileInput");
+      const uploadBtn    = document.getElementById("uploadBtn");
+      const downloadBtn  = document.getElementById("downloadBtn");
+      const resultDiv    = document.getElementById("result");
+      let blobUrl;
+
+      uploadBtn.addEventListener("click", async () => {
+        if (!fileInput.files.length) return alert("Sélectionnez une image.");
+
+        const file = fileInput.files[0];
+        const form = new FormData();
+        form.append("image", file);
+
+        // Affichage image originale
+        const reader = new FileReader();
+        reader.onload = () => {
+          resultDiv.innerHTML = `
+            <div class="image-block">
+              <h3>🖼️ Avant</h3>
+              <img src="${reader.result}" alt="Avant">
+            </div>`;
+        };
+        reader.readAsDataURL(file);
+
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = "⏳ En cours...";
+
+        try {
+          const response = await fetch("/upload", { method: "POST", body: form });
+          const { transformedUrl } = await response.json();
+
+          resultDiv.innerHTML += `
+            <div class="image-block">
+              <h3>✨ Après</h3>
+              <img id="transformedImage" src="${transformedUrl}" alt="Après">
+            </div>`;
+
+          // Téléchargement depuis Pixelbin
+          const r = await fetch(transformedUrl);
+          const blob = await r.blob();
+          blobUrl = URL.createObjectURL(blob);
+          downloadBtn.style.display = "inline-block";
+
+          // Télécharger : nom original + suffixe
+          const ext = file.name.split('.').pop();
+          const base = file.name.replace(/\.\w+$/, "");
+          downloadBtn.onclick = () => {
+            const a = document.createElement("a");
+            a.href = blobUrl;
+            a.download = `${base}_upscaled.${ext}`;
+            a.click();
+          };
+        } catch (e) {
+          alert("Erreur : " + e.message);
+        } finally {
+          uploadBtn.disabled = false;
+          uploadBtn.textContent = "Améliorer l’image";
+        }
+      });
+    });
+  </script>
+</body>
+</html>
