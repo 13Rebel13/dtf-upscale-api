@@ -8,6 +8,9 @@ const app = express();
 const upload = multer();
 app.use(cors());
 
+// ✅ Permet de servir les fichiers HTML statiques du dossier /public
+app.use(express.static("public"));
+
 const {
   PIXELBIN_API_TOKEN,
   PIXELBIN_CLOUD_NAME,
@@ -30,7 +33,10 @@ app.post("/upload", upload.single("image"), async (req, res) => {
 
   try {
     const { buffer, originalname } = req.file;
-    const basename = originalname.replace(/\s+/g, "_").replace(/[\(\)]/g, "").replace(/\.\w+$/, "");
+    const basename = originalname
+      .replace(/\s+/g, "_")
+      .replace(/[\(\)]/g, "")
+      .replace(/\.\w+$/, "");
     const uniqueName = `${basename}-${Date.now()}`;
 
     const result = await pixelbin.uploader.upload({
