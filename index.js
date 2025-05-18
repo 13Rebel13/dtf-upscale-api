@@ -1,14 +1,14 @@
+// index.js
 require("dotenv").config();
 const express  = require("express");
 const multer   = require("multer");
 const cors     = require("cors");
-const { PixelbinConfig, PixelbinClient, url: PixelbinUrl } = require("@pixelbin/admin");
+const { PixelbinConfig, PixelbinClient } = require("@pixelbin/admin");
 
 const app    = express();
 const upload = multer();
 app.use(cors());
 
-// Variables d’environnement
 const {
   PIXELBIN_API_TOKEN,
   PIXELBIN_CLOUD_NAME,
@@ -16,8 +16,7 @@ const {
   PIXELBIN_UPLOAD_DIR
 } = process.env;
 
-// Debug au démarrage
-console.log("🔑 Token…", PIXELBIN_API_TOKEN?.slice(0,8));
+console.log("🔑 Token:", PIXELBIN_API_TOKEN?.slice(0,8));
 console.log("☁️ CloudName:", PIXELBIN_CLOUD_NAME);
 console.log("🏷 ZoneSlug:", PIXELBIN_ZONE_SLUG);
 console.log("📁 UploadDir:", PIXELBIN_UPLOAD_DIR);
@@ -37,16 +36,13 @@ app.post("/upload", upload.single("image"), async (req, res) => {
 
   try {
     const { buffer, originalname } = req.file;
-    // 1) Crée un basename simple
     const basename = originalname
-      .replace(/\s+/g, "_")      // espaces → _
-      .replace(/[\(\)]/g, "")    // supprime parenthèses
-      .replace(/\.\w+$/, "");    // sans extension
+      .replace(/\s+/g, "_")
+      .replace(/[\(\)]/g, "")
+      .replace(/\.\w+$/, "");
 
-    // 2) Génère un suffixe unique (timestamp)
     const uniqueName = `${basename}-${Date.now()}`;
 
-    // 3) Upload via SDK, sans changer ton flow
     const upResult = await pixelbin.uploader.upload({
       file:      buffer,
       name:      uniqueName,
@@ -57,15 +53,17 @@ app.post("/upload", upload.single("image"), async (req, res) => {
     });
 
     const originalUrl   = upResult.url;
-    // Construction de l’URL upscalée ×4
-    const transformSeg  = `/sr.upscale(t:4x)/`;
-    const transformedUrl = originalUrl.replace("/original/", transformSeg);
+    const transformedUrl = originalUrl.replace("/original/", "/sr.upscale(t:4x)/");
 
     return res.json({ originalUrl, transformedUrl });
   } catch (err) {
     console.error("❌ Erreur PixelBin :", err);
     return res.status(500).json({ error: "PixelBin", details: err.message });
   }
+});
+
+app.get("/", (req, res) => {
+  res.send("<p>✅ API Pixelbin OK</p>");
 });
 
 const PORT = process.env.PORT || 10000;
