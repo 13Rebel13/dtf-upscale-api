@@ -3,125 +3,90 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Améliore ton image 🔍</title>
+  <title>Améliorer une image</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 40px;
-      text-align: center;
-    }
-    .controls {
-      margin-bottom: 30px;
-    }
-    .controls input, .controls button {
-      font-size: 16px;
-      margin: 6px;
-      padding: 10px 16px;
-    }
-    .result {
-      display: flex;
-      justify-content: center;
-      gap: 60px;
-      flex-wrap: wrap;
-      margin-top: 20px;
-    }
-    .result img {
-      max-width: 100%;
-      border-radius: 12px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.1);
-    }
-    .spinner {
-      border: 4px solid rgba(0,0,0,0.1);
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      border-left-color: #000;
-      animation: spin 1s linear infinite;
-      display: inline-block;
-      vertical-align: middle;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+    /* TON CSS ICI (le même que dans ton Liquid Shopify) */
+    #pixelbin-container { max-width: 800px; margin: 40px auto; text-align: center; }
+    #pixelbin-actions { margin-bottom: 24px; }
+    #pixelbin-actions input, #pixelbin-actions button { vertical-align: middle; }
+    #uploadBtn { background: #007bff; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-left: 8px; }
+    #uploadBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+    #downloadBtn { background: #28a745; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-left: 8px; display: none; }
+    #pixelbin-result { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 20px; margin-top: 20px; }
+    .image-block { flex: 0 1 45%; text-align: center; }
+    .image-block img { max-width: 100%; border: 1px solid #ddd; border-radius: 4px; margin-top: 8px; }
+    .spinner { border: 4px solid rgba(0,0,0,0.1); width: 24px; height: 24px; border-radius: 50%; border-left-color: #000; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <h1>Améliore ton image 🔍</h1>
-  <div class="controls">
-    <input type="file" id="uploadInput" accept="image/*" />
-    <button id="uploadBtn">Améliorer l’image</button>
-    <button id="downloadBtn" style="display:none;">📥 Télécharger</button>
+  <div id="pixelbin-container">
+    <div id="pixelbin-actions">
+      <input type="file" id="pixelbin-upload-input" accept="image/png, image/jpeg">
+      <button id="uploadBtn">Améliorer l’image</button>
+      <button id="downloadBtn">📥 Télécharger</button>
+    </div>
+    <div id="pixelbin-result"></div>
   </div>
 
-  <div class="result" id="result"></div>
-
   <script>
-    (function(){
-      const UPLOAD_URL = "https://dtf-upscale-api.onrender.com/upload";
-      const input = document.getElementById("uploadInput");
-      const uploadBtn = document.getElementById("uploadBtn");
-      const downloadBtn = document.getElementById("downloadBtn");
-      const result = document.getElementById("result");
-      let blobUrl = "";
+  (function(){
+    const UPLOAD_URL  = "/upload";
+    const input       = document.getElementById("pixelbin-upload-input");
+    const uploadBtn   = document.getElementById("uploadBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const result      = document.getElementById("pixelbin-result");
+    let blobUrl; 
 
-      uploadBtn.addEventListener("click", async () => {
-        if (!input.files.length) return alert("Sélectionnez une image.");
-        const file = input.files[0];
+    uploadBtn.addEventListener("click", async () => {
+      if (!input.files.length) return alert("Sélectionnez une image.");
+      const file = input.files[0];
 
-        // Aperçu original
-        const reader = new FileReader();
-        reader.onload = () => {
-          result.innerHTML = `
-            <div>
-              <p>🌍 Avant</p>
-              <img src="${reader.result}" alt="Avant">
-            </div>`;
-        };
-        reader.readAsDataURL(file);
+      const reader = new FileReader();
+      reader.onload = () => {
+        result.innerHTML = `<div class="image-block"><p>🖼️ Avant :</p><img src="${reader.result}" alt="Avant"></div>`;
+      };
+      reader.readAsDataURL(file);
 
-        // Désactiver bouton et spinner
-        uploadBtn.disabled = true;
-        uploadBtn.innerHTML = '<div class="spinner"></div>';
-        downloadBtn.style.display = "none";
+      uploadBtn.disabled   = true;
+      uploadBtn.textContent = "";
+      const spinner = document.createElement("div");
+      spinner.className = "spinner";
+      uploadBtn.appendChild(spinner);
+      downloadBtn.style.display = "none";
 
-        try {
-          const form = new FormData();
-          form.append("image", file);
-          const res = await fetch(UPLOAD_URL, { method: "POST", body: form });
-          const { transformedUrl } = await res.json();
+      try {
+        const form = new FormData();
+        form.append("image", file);
+        const resp = await fetch(UPLOAD_URL, { method:"POST", body: form });
+        const { transformedUrl } = await resp.json();
 
-          // Aperçu après
-          result.innerHTML += `
-            <div>
-              <p>✨ Après</p>
-              <img src="${transformedUrl}" alt="Après" id="afterImage">
-            </div>`;
+        result.innerHTML += `<div class="image-block"><p>✨ Après :</p><img src="${transformedUrl}" alt="Après"></div>`;
+        const r2 = await fetch(transformedUrl);
+        const blob = await r2.blob();
+        blobUrl = URL.createObjectURL(blob);
+        downloadBtn.style.display = "inline-block";
+      } catch (e) {
+        alert("Erreur : " + e.message);
+      } finally {
+        uploadBtn.disabled   = false;
+        uploadBtn.textContent = "Améliorer l’image";
+      }
+    });
 
-          const r2 = await fetch(transformedUrl);
-          const blob = await r2.blob();
-          const contentType = r2.headers.get("Content-Type") || "image/png";
-          const extension = contentType.split("/")[1];
-          const base = file.name.replace(/\.\w+$/, "");
-          const suffix = Math.random().toString(36).substring(2, 6);
-          const filename = `${base}_HD_${suffix}.${extension}`;
-
-          blobUrl = URL.createObjectURL(new Blob([blob], { type: contentType }));
-
-          downloadBtn.style.display = "inline-block";
-          downloadBtn.onclick = () => {
-            const a = document.createElement("a");
-            a.href = blobUrl;
-            a.download = filename;
-            a.click();
-          };
-        } catch (e) {
-          alert("Erreur : " + e.message);
-        } finally {
-          uploadBtn.disabled = false;
-          uploadBtn.textContent = "Améliorer l’image";
-        }
-      });
-    })();
+    downloadBtn.addEventListener("click", () => {
+      if (!blobUrl) return;
+      const file = input.files[0];
+      const ext  = file.type.split("/")[1] || "png";
+      const name = file.name.replace(/\.\w+$/, "") + "_HD." + ext;
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+  })();
   </script>
 </body>
 </html>
