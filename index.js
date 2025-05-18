@@ -1,10 +1,13 @@
 require("dotenv").config();
-const express  = require("express");
-const multer   = require("multer");
-const cors     = require("cors");
-const { PixelbinConfig, PixelbinClient, url: PixelbinUrl } = require("@pixelbin/admin");
+const express = require("express");
+const multer = require("multer");
+const cors = require("cors");
+const {
+  PixelbinConfig,
+  PixelbinClient
+} = require("@pixelbin/admin");
 
-const app    = express();
+const app = express();
 const upload = multer();
 app.use(cors());
 
@@ -15,19 +18,22 @@ const {
   PIXELBIN_UPLOAD_DIR
 } = process.env;
 
-console.log("🔑 Token…", PIXELBIN_API_TOKEN?.slice(0,8));
-console.log("☁️ CloudName:", PIXELBIN_CLOUD_NAME);
-console.log("🏷 ZoneSlug:", PIXELBIN_ZONE_SLUG);
-console.log("📁 UploadDir:", PIXELBIN_UPLOAD_DIR);
+// Affichage debug au démarrage
+console.log("🔐 PIXELBIN_API_TOKEN:", PIXELBIN_API_TOKEN?.slice(0, 8));
+console.log("☁️ PIXELBIN_CLOUD_NAME:", PIXELBIN_CLOUD_NAME);
+console.log("📦 PIXELBIN_UPLOAD_DIR:", PIXELBIN_UPLOAD_DIR);
+console.log("📍 PIXELBIN_ZONE_SLUG:", PIXELBIN_ZONE_SLUG);
 
-const config   = new PixelbinConfig({
-  domain:    "https://api.pixelbin.io",
+// Initialisation SDK Pixelbin
+const config = new PixelbinConfig({
+  domain: "https://api.pixelbin.io",
   cloudName: PIXELBIN_CLOUD_NAME,
-  zoneSlug:  PIXELBIN_ZONE_SLUG,
+  zoneSlug: PIXELBIN_ZONE_SLUG,
   apiSecret: PIXELBIN_API_TOKEN,
 });
 const pixelbin = new PixelbinClient(config);
 
+// Route POST /upload
 app.post("/upload", upload.single("image"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "Aucune image envoyée." });
@@ -42,16 +48,16 @@ app.post("/upload", upload.single("image"), async (req, res) => {
     const uniqueName = `${basename}-${Date.now()}`;
 
     const upResult = await pixelbin.uploader.upload({
-      file:      buffer,
-      name:      uniqueName,
-      path:      PIXELBIN_UPLOAD_DIR,
-      format:    (originalname.match(/\.(\w+)$/) || [])[1] || "png",
-      access:    "public-read",
+      file: buffer,
+      name: uniqueName,
+      path: PIXELBIN_UPLOAD_DIR,
+      format: (originalname.match(/\.(\w+)$/) || [])[1] || "png",
+      access: "public-read",
       overwrite: true,
     });
 
-    const originalUrl    = upResult.url;
-    const transformSeg   = `/sr.upscale(t:4x)/`;
+    const originalUrl = upResult.url;
+    const transformSeg = `/sr.upscale(t:4x)/`;
     const transformedUrl = originalUrl.replace("/original/", transformSeg);
 
     return res.json({ originalUrl, transformedUrl });
@@ -61,6 +67,12 @@ app.post("/upload", upload.single("image"), async (req, res) => {
   }
 });
 
+// Test route GET /
+app.get("/", (req, res) => {
+  res.send("✅ API Pixelbin opérationnelle !");
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`🚀 Proxy PixelBin démarré sur le port ${PORT}`);
+  console.log(`🚀 Serveur Pixelbin lancé sur le port ${PORT}`);
+});
