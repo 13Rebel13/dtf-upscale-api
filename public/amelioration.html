@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Amélioration d’image</title>
+  <title>Améliorer une image</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -57,8 +58,8 @@
   <div class="result" id="result"></div>
 
   <script>
-    (function(){
-      const UPLOAD_URL = "https://dtf-upscale-api.onrender.com/upload"; // ton backend Render
+    window.addEventListener("DOMContentLoaded", () => {
+      const UPLOAD_URL = "/upload";
       const input = document.getElementById("uploadInput");
       const uploadBtn = document.getElementById("uploadBtn");
       const downloadBtn = document.getElementById("downloadBtn");
@@ -69,7 +70,6 @@
         if (!input.files.length) return alert("Sélectionnez une image.");
         const file = input.files[0];
 
-        // Aperçu avant
         const reader = new FileReader();
         reader.onload = () => {
           result.innerHTML = `
@@ -80,7 +80,6 @@
         };
         reader.readAsDataURL(file);
 
-        // Désactiver bouton
         uploadBtn.disabled = true;
         uploadBtn.innerHTML = '<div class="spinner"></div>';
         downloadBtn.style.display = "none";
@@ -91,14 +90,12 @@
           const resp = await fetch(UPLOAD_URL, { method: "POST", body: form });
           const { transformedUrl } = await resp.json();
 
-          // Aperçu après
           result.innerHTML += `
             <div>
               <p>✨ Après :</p>
               <img src="${transformedUrl}" alt="Après">
             </div>`;
 
-          // Préparation pour téléchargement
           const r2 = await fetch(transformedUrl);
           const blob = await r2.blob();
           const ext = file.type.split("/")[1] || "png";
@@ -123,7 +120,7 @@
           uploadBtn.textContent = "Améliorer l’image";
         }
       });
-    })();
+    });
   </script>
 </body>
 </html>
