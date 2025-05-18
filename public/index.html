@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Outil Pixelbin - Upscale</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 900px;
+      margin: auto;
+      padding: 40px 20px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 20px;
+    }
+    input[type="file"] {
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      background-color: #007bff;
+      border: none;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    #images {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      margin-top: 30px;
+    }
+    .image-block {
+      width: 48%;
+    }
+    .image-block img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+    #download {
+      display: none;
+      background: #28a745;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>✨ Amélioration d’image par IA (Pixelbin)</h1>
+
+  <input type="file" id="fileInput" accept="image/*">
+  <button id="uploadButton">Améliorer l’image</button>
+  <button id="download">📥 Télécharger l’image</button>
+
+  <div id="images"></div>
+
+  <script>
+    const uploadButton = document.getElementById("uploadButton");
+    const downloadBtn = document.getElementById("download");
+    const fileInput = document.getElementById("fileInput");
+    const imageContainer = document.getElementById("images");
+    let finalBlobUrl;
+
+    uploadButton.addEventListener("click", async () => {
+      const file = fileInput.files[0];
+      if (!file) return alert("Sélectionne une image.");
+
+      uploadButton.disabled = true;
+      uploadButton.textContent = "Traitement...";
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        imageContainer.innerHTML = `
+          <div class="image-block">
+            <h3>🖼️ Avant</h3>
+            <img src="${reader.result}">
+          </div>
+        `;
+      };
+      reader.readAsDataURL(file);
+
+      const formData = new FormData();
+      formData.append("image", file);
+
+      try {
+        const res = await fetch("/upload", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+        if (!data.transformedUrl) throw new Error("Erreur API");
+
+        imageContainer.innerHTML += `
+          <div class="image-block">
+            <h3>✨ Après</h3>
+            <img src="${data.transformedUrl}">
+          </div>
+        `;
+
+        const blobRes = await fetch(data.transformedUrl);
+        const blob = await blobRes.blob();
+        finalBlobUrl = URL.createObjectURL(blob);
+        downloadBtn.style.display = "inline-block";
+
+      } catch (e) {
+        alert("❌ Une erreur est survenue.");
+        console.error(e);
+      } finally {
+        uploadButton.disabled = false;
+        uploadButton.textContent = "Améliorer l’image";
+      }
+    });
+
+    downloadBtn.addEventListener("click", () => {
+      const a = document.createElement("a");
+      a.href = finalBlobUrl;
+      a.download = "image-upscale.png";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+  </script>
+
+</body>
+</html>
