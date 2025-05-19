@@ -78,7 +78,7 @@
       formData.append('image', file);
 
       try {
-        const res = await fetch('https://dtf-upscale-api.onrender.com/upscale', {
+        fetch('/upscale', {
           method: 'POST',
           body: formData,
           credentials: 'include' // Pour envoyer le cookie d’auth Outseta
