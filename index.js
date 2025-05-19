@@ -1,23 +1,25 @@
+// index.js complet avec frontend HTML + backend Node.js fonctionnel (avec bouton)
+
 require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
-const { PixelbinConfig, PixelbinClient, url } = require("@pixelbin/admin");
+const path = require("path");
+const { PixelbinConfig, PixelbinClient } = require("@pixelbin/admin");
 
 const app = express();
 const upload = multer();
 app.use(cors());
+app.use(express.static("public")); // sert le dossier /public
 
-// ✅ Variables d’environnement
 const {
   PIXELBIN_API_TOKEN,
   PIXELBIN_CLOUD_NAME,
   PIXELBIN_ZONE_SLUG,
-  PIXELBIN_UPLOAD_DIR,
-  PIXELBIN_PRESET,
+  PIXELBIN_UPLOAD_DIR
 } = process.env;
 
-// 🔐 Config SDK
+// Configuration Pixelbin
 const config = new PixelbinConfig({
   domain: "https://api.pixelbin.io",
   cloudName: PIXELBIN_CLOUD_NAME,
@@ -26,45 +28,38 @@ const config = new PixelbinConfig({
 });
 const pixelbin = new PixelbinClient(config);
 
-// ✅ Route API
+// Route POST /upload
 app.post("/upload", upload.single("image"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Aucune image reçue." });
+  if (!req.file) return res.status(400).json({ error: "Aucune image envoyée." });
 
   try {
     const { buffer, originalname } = req.file;
-    const ext = originalname.split(".").pop();
-    const baseName = originalname.replace(/\.\w+$/, "").replace(/\s+/g, "_");
+    const base = originalname.replace(/\s+/g, "_").replace(/\W+/g, "").replace(/\.\w+$/, "");
+    const unique = `${base}_${Date.now()}`;
+    const format = (originalname.match(/\.(\w+)$/) || [])[1] || "png";
 
-    // 📤 Upload
-    const uploaded = await pixelbin.uploader.upload({
+    const result = await pixelbin.uploader.upload({
       file: buffer,
-      name: `${baseName}_${Date.now()}`,
+      name: unique,
       path: PIXELBIN_UPLOAD_DIR,
-      format: ext,
+      format,
       access: "public-read",
       overwrite: true,
     });
 
-    const baseImageUrl = uploaded.url;
+    const originalUrl = result.url;
+    const transformedUrl = result.url.replace("/original/", "/sr.upscale(t:4x)/");
 
-    // ✅ Générer l’URL avec le preset
-    const transformedUrl = url({
-      baseUrl: baseImageUrl,
-      options: {
-        presetName: PIXELBIN_PRESET, // ← "super_resolution"
-      },
-    });
-
-    res.json({ originalUrl: baseImageUrl, transformedUrl });
+    res.json({ originalUrl, transformedUrl });
   } catch (err) {
-    console.error("❌ Erreur Pixelbin :", err);
-    res.status(500).json({ error: "Erreur Pixelbin", message: err.message });
+    console.error("Erreur Pixelbin :", err);
+    res.status(500).json({ error: "Lien transformé manquant", details: err.message });
   }
 });
 
-// ✅ Ping route
+// Page test (fallback si accès direct racine)
 app.get("/", (req, res) => {
-  res.send("✅ API Pixelbin OK");
+  res.sendFile(path.join(__dirname, "public", "amelioration.html"));
 });
 
 const PORT = process.env.PORT || 10000;
