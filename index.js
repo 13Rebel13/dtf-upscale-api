@@ -20,7 +20,7 @@ const {
   PIXELBIN_CLOUD_NAME,
   PIXELBIN_ZONE_SLUG,
   PIXELBIN_UPLOAD_DIR,
-  PIXELBIN_PRESET_NAME,
+  PIXELBIN_PRESET_NAME, // <- NOM EXACT attendu dans Render
   OUTSETA_API_KEY
 } = process.env;
 
@@ -33,7 +33,7 @@ const pixelbin = new PixelbinClient(
   })
 );
 
-// Vérifie Outseta + crédits
+// 🔒 Vérifie Outseta + crédits
 async function checkAndDecrementCredits(req) {
   const authToken = req.headers.cookie
     ?.split(";")
@@ -44,7 +44,7 @@ async function checkAndDecrementCredits(req) {
     throw new Error("Non authentifié via Outseta.");
   }
 
-  // 🔍 Récupérer l'utilisateur
+  // 🔍 Récupérer l'utilisateur connecté
   const userRes = await axios.get("https://app.outseta.com/api/auth/current", {
     headers: {
       "Authorization": `Bearer ${authToken}`,
@@ -63,9 +63,9 @@ async function checkAndDecrementCredits(req) {
     throw new Error("Crédits insuffisants.");
   }
 
-  // ✏️ Mise à jour des crédits (décrémentation)
   const personId = user.CrmPerson.Uid;
 
+  // 🧾 Décrémentation des crédits
   await axios.put(
     `https://app.outseta.com/api/crm/people/${personId}`,
     {
@@ -82,13 +82,14 @@ async function checkAndDecrementCredits(req) {
   );
 }
 
+// 🔁 Route principale
 app.post("/upscale", upload.single("image"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: "Aucune image envoyée." });
   }
 
   try {
-    // Vérification de l'utilisateur et crédits
+    // Vérifie les crédits de l’utilisateur
     await checkAndDecrementCredits(req);
 
     const { buffer, originalname } = req.file;
@@ -110,13 +111,14 @@ app.post("/upscale", upload.single("image"), async (req, res) => {
 
     res.json({ success: true, url: transformedUrl });
   } catch (err) {
-    console.error("Erreur upscale:", err.message);
+    console.error("Erreur /upscale:", err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
+// 🔍 Page d'accueil de test
 app.get("/", (req, res) => {
-  res.send("✅ API d’amélioration d’image prête.");
+  res.send("✅ API DTF Swiss - amélioration d’image en ligne.");
 });
 
 const PORT = process.env.PORT || 10000;
