@@ -3,38 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Améliore ton image 🔍</title>
+  <title>Amélioration d’image</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      padding: 40px;
+      padding: 20px;
       text-align: center;
     }
     h1 {
-      font-size: 2rem;
+      color: #2d3436;
     }
-    #actions {
-      margin: 20px 0;
+    .controls {
+      margin-bottom: 20px;
     }
-    #actions input[type="file"],
-    #actions button {
-      margin: 10px;
-      font-size: 1rem;
+    .controls input,
+    .controls button {
+      font-size: 16px;
+      margin: 5px;
     }
-    #downloadBtn {
-      display: none;
-      background: #28a745;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 5px;
+    .result {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 40px;
     }
-    #uploadBtn {
-      background: #007bff;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 5px;
+    .result img {
+      max-width: 100%;
+      border-radius: 10px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.1);
     }
     .spinner {
       border: 4px solid rgba(0,0,0,0.1);
@@ -46,33 +42,23 @@
       display: inline-block;
       vertical-align: middle;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .result {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 40px;
-      margin-top: 20px;
-    }
-    .result img {
-      max-width: 100%;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
-  <h1>Améliore ton image 🔍</h1>
-  <div id="actions">
+  <h1>Améliorer une image</h1>
+  <div class="controls">
     <input type="file" id="uploadInput" accept="image/*" />
     <button id="uploadBtn">Améliorer l’image</button>
-    <button id="downloadBtn">📥 Télécharger</button>
+    <button id="downloadBtn" style="display: none;">📥 Télécharger</button>
   </div>
   <div class="result" id="result"></div>
 
   <script>
     (function(){
-      const UPLOAD_URL = "https://dtf-upscale-api.onrender.com/upload";
+      const UPLOAD_URL = "/upload"; // Appelle le backend Render sur le même domaine
       const input = document.getElementById("uploadInput");
       const uploadBtn = document.getElementById("uploadBtn");
       const downloadBtn = document.getElementById("downloadBtn");
@@ -83,6 +69,7 @@
         if (!input.files.length) return alert("Sélectionnez une image.");
         const file = input.files[0];
 
+        // Aperçu avant
         const reader = new FileReader();
         reader.onload = () => {
           result.innerHTML = `
@@ -93,6 +80,7 @@
         };
         reader.readAsDataURL(file);
 
+        // Spinner
         uploadBtn.disabled = true;
         uploadBtn.innerHTML = '<div class="spinner"></div>';
         downloadBtn.style.display = "none";
@@ -101,23 +89,21 @@
           const form = new FormData();
           form.append("image", file);
           const resp = await fetch(UPLOAD_URL, { method: "POST", body: form });
-          const data = await resp.json();
-
-          if (!data.transformedUrl) throw new Error("Lien transformé manquant");
+          const { transformedUrl } = await resp.json();
 
           result.innerHTML += `
             <div>
               <p>✨ Après :</p>
-              <img src="${data.transformedUrl}" alt="Après">
+              <img src="${transformedUrl}" alt="Après">
             </div>`;
 
-          const response = await fetch(data.transformedUrl);
-          const blob = await response.blob();
+          const r2 = await fetch(transformedUrl);
+          const blob = await r2.blob();
           const ext = file.type.split("/")[1] || "png";
           const baseName = file.name.replace(/\.\w+$/, "");
           const suffix = Math.random().toString(36).substring(2, 6);
           const name = `${baseName}_HD_${suffix}.${ext}`;
-          blobUrl = URL.createObjectURL(blob);
+          blobUrl = URL.createObjectURL(new Blob([blob], { type: r2.headers.get("Content-Type") }));
 
           downloadBtn.style.display = "inline-block";
           downloadBtn.onclick = () => {
