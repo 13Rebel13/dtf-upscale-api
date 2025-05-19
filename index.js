@@ -1,15 +1,18 @@
-// index.js (Backend Node.js avec Pixelbin + preset)
 require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
 const path = require("path");
+const axios = require("axios");
 const { PixelbinConfig, PixelbinClient } = require("@pixelbin/admin");
 
 const app = express();
 const upload = multer();
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
 app.use(express.static("public"));
 
 const {
@@ -17,29 +20,77 @@ const {
   PIXELBIN_CLOUD_NAME,
   PIXELBIN_ZONE_SLUG,
   PIXELBIN_UPLOAD_DIR,
-  PIXELBIN_PRESET_NAME
+  PIXELBIN_PRESET_NAME,
+  OUTSETA_API_KEY
 } = process.env;
 
-console.log("🔑 Token:", PIXELBIN_API_TOKEN?.slice(0, 8));
-console.log("☁️ CloudName:", PIXELBIN_CLOUD_NAME);
-console.log("🏷 ZoneSlug:", PIXELBIN_ZONE_SLUG);
-console.log("📁 UploadDir:", PIXELBIN_UPLOAD_DIR);
-console.log("🧩 Preset:", PIXELBIN_PRESET_NAME);
+const pixelbin = new PixelbinClient(
+  new PixelbinConfig({
+    domain: "https://api.pixelbin.io",
+    cloudName: PIXELBIN_CLOUD_NAME,
+    zoneSlug: PIXELBIN_ZONE_SLUG,
+    apiSecret: PIXELBIN_API_TOKEN,
+  })
+);
 
-const config = new PixelbinConfig({
-  domain: "https://api.pixelbin.io",
-  cloudName: PIXELBIN_CLOUD_NAME,
-  zoneSlug: PIXELBIN_ZONE_SLUG,
-  apiSecret: PIXELBIN_API_TOKEN,
-});
-const pixelbin = new PixelbinClient(config);
+// Vérifie Outseta + crédits
+async function checkAndDecrementCredits(req) {
+  const authToken = req.headers.cookie
+    ?.split(";")
+    .find(c => c.trim().startsWith("Outseta-Auth="))
+    ?.split("=")[1];
 
-app.post("/upload", upload.single("image"), async (req, res) => {
+  if (!authToken) {
+    throw new Error("Non authentifié via Outseta.");
+  }
+
+  // 🔍 Récupérer l'utilisateur
+  const userRes = await axios.get("https://app.outseta.com/api/auth/current", {
+    headers: {
+      "Authorization": `Bearer ${authToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  const user = userRes.data;
+  if (!user || user.CrmPerson?.CustomFields?.credits == null) {
+    throw new Error("Utilisateur ou crédits non trouvés.");
+  }
+
+  const currentCredits = user.CrmPerson.CustomFields.credits;
+
+  if (currentCredits < 1) {
+    throw new Error("Crédits insuffisants.");
+  }
+
+  // ✏️ Mise à jour des crédits (décrémentation)
+  const personId = user.CrmPerson.Uid;
+
+  await axios.put(
+    `https://app.outseta.com/api/crm/people/${personId}`,
+    {
+      CustomFields: {
+        credits: currentCredits - 1,
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${OUTSETA_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+}
+
+app.post("/upscale", upload.single("image"), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: "Aucune image envoyée." });
+    return res.status(400).json({ success: false, message: "Aucune image envoyée." });
   }
 
   try {
+    // Vérification de l'utilisateur et crédits
+    await checkAndDecrementCredits(req);
+
     const { buffer, originalname } = req.file;
     const ext = (originalname.match(/\.(\w+)$/) || [])[1] || "png";
     const base = originalname.replace(/\s+/g, "_").replace(/[()]/g, "").replace(/\.\w+$/, "");
@@ -57,18 +108,18 @@ app.post("/upload", upload.single("image"), async (req, res) => {
     const baseUrl = uploaded.url.split("/original/")[0];
     const transformedUrl = `${baseUrl}/${PIXELBIN_PRESET_NAME}/${PIXELBIN_UPLOAD_DIR}/${uniqueName}.${ext}`;
 
-    res.json({ transformedUrl });
+    res.json({ success: true, url: transformedUrl });
   } catch (err) {
-    console.error("❌ Erreur Pixelbin:", err);
-    res.status(500).json({ error: "Erreur Pixelbin", details: err.message });
+    console.error("Erreur upscale:", err.message);
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
 app.get("/", (req, res) => {
-  res.send("✅ API Pixelbin OK");
+  res.send("✅ API d’amélioration d’image prête.");
 });
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`🚀 API Pixelbin démarrée sur le port ${PORT}`);
+  console.log(`🚀 Serveur actif sur le port ${PORT}`);
 });
